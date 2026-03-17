@@ -1,95 +1,145 @@
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 
-// Custom Exception for Invalid Booking
-class InvalidBookingException extends Exception {
-    public InvalidBookingException(String message) {
+// Custom Exception
+class BookingException extends Exception {
+    public BookingException(String message) {
         super(message);
     }
 }
 
-// Hotel Inventory Manager
-class HotelInventory {
-    private Map<String, Integer> rooms;
+// Booking class
+class Booking {
+    String bookingId;
+    String roomType;
+    int roomsBooked;
+    boolean isCancelled;
 
-    public HotelInventory() {
-        rooms = new HashMap<>();
-        rooms.put("STANDARD", 5);
-        rooms.put("DELUXE", 3);
-        rooms.put("SUITE", 2);
+    public Booking(String bookingId, String roomType, int roomsBooked) {
+        this.bookingId = bookingId;
+        this.roomType = roomType;
+        this.roomsBooked = roomsBooked;
+        this.isCancelled = false;
+    }
+}
+
+// Hotel System
+class HotelSystem {
+    private Map<String, Integer> inventory = new HashMap<>();
+    private Map<String, Booking> bookings = new HashMap<>();
+    private Stack<String> rollbackStack = new Stack<>();
+
+    public HotelSystem() {
+        inventory.put("STANDARD", 5);
+        inventory.put("DELUXE", 3);
+        inventory.put("SUITE", 2);
+    }
+
+    // Book rooms
+    public void bookRoom(String bookingId, String roomType, int count) throws BookingException {
+        validateRoomType(roomType);
+
+        if (count <= 0) {
+            throw new BookingException("Invalid room count.");
+        }
+
+        int available = inventory.get(roomType);
+        if (available < count) {
+            throw new BookingException("Not enough rooms available.");
+        }
+
+        inventory.put(roomType, available - count);
+        bookings.put(bookingId, new Booking(bookingId, roomType, count));
+
+        System.out.println("Booking successful. ID: " + bookingId);
+    }
+
+    // Cancel booking with rollback
+    public void cancelBooking(String bookingId) throws BookingException {
+        if (!bookings.containsKey(bookingId)) {
+            throw new BookingException("Booking does not exist.");
+        }
+
+        Booking booking = bookings.get(bookingId);
+
+        if (booking.isCancelled) {
+            throw new BookingException("Booking already cancelled.");
+        }
+
+        // LIFO rollback tracking
+        rollbackStack.push(bookingId);
+
+        // Restore inventory
+        inventory.put(booking.roomType,
+                inventory.get(booking.roomType) + booking.roomsBooked);
+
+        // Mark cancelled
+        booking.isCancelled = true;
+
+        System.out.println("Booking cancelled successfully: " + bookingId);
     }
 
     // Validate room type
-    public void validateRoomType(String roomType) throws InvalidBookingException {
-        if (!rooms.containsKey(roomType)) {
-            throw new InvalidBookingException("Invalid room type: " + roomType);
+    private void validateRoomType(String roomType) throws BookingException {
+        if (!inventory.containsKey(roomType)) {
+            throw new BookingException("Invalid room type.");
         }
-    }
-
-    // Validate availability
-    public void validateAvailability(String roomType, int count) throws InvalidBookingException {
-        int available = rooms.get(roomType);
-        if (count <= 0) {
-            throw new InvalidBookingException("Booking count must be greater than 0.");
-        }
-        if (available < count) {
-            throw new InvalidBookingException("Not enough rooms available. Available: " + available);
-        }
-    }
-
-    // Book room
-    public void bookRoom(String roomType, int count) throws InvalidBookingException {
-        // Fail-fast validations
-        validateRoomType(roomType);
-        validateAvailability(roomType, count);
-
-        // Safe state update
-        rooms.put(roomType, rooms.get(roomType) - count);
-
-        System.out.println("Booking successful! " + count + " " + roomType + " room(s) booked.");
     }
 
     // Display inventory
     public void displayInventory() {
-        System.out.println("\nCurrent Room Availability:");
-        for (String type : rooms.keySet()) {
-            System.out.println(type + ": " + rooms.get(type));
+        System.out.println("\nCurrent Inventory:");
+        for (String type : inventory.keySet()) {
+            System.out.println(type + ": " + inventory.get(type));
         }
+    }
+
+    // Display rollback stack
+    public void showRollbackStack() {
+        System.out.println("\nRollback Stack (Recent cancellations): " + rollbackStack);
     }
 }
 
-// Main Class
+// Main class
 public class BookMyStay {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        HotelInventory inventory = new HotelInventory();
-
-        System.out.println("=== Welcome to Book My Stay App ===");
+        HotelSystem system = new HotelSystem();
 
         try {
+            System.out.println("=== Book My Stay App ===");
+
+            // Booking
+            System.out.print("Enter Booking ID: ");
+            String id = scanner.nextLine();
+
             System.out.print("Enter Room Type (STANDARD/DELUXE/SUITE): ");
-            String roomType = scanner.nextLine().toUpperCase();
+            String type = scanner.nextLine().toUpperCase();
 
             System.out.print("Enter number of rooms: ");
             int count = Integer.parseInt(scanner.nextLine());
 
-            // Attempt booking
-            inventory.bookRoom(roomType, count);
+            system.bookRoom(id, type, count);
 
-        } catch (InvalidBookingException e) {
-            // Graceful failure handling
-            System.out.println("Booking Failed: " + e.getMessage());
+            // Cancellation
+            System.out.print("\nEnter Booking ID to cancel: ");
+            String cancelId = scanner.nextLine();
+
+            system.cancelBooking(cancelId);
+
+        } catch (BookingException e) {
+            System.out.println("Error: " + e.getMessage());
 
         } catch (NumberFormatException e) {
-            System.out.println("Invalid input! Please enter a valid number.");
+            System.out.println("Invalid number input.");
 
         } catch (Exception e) {
-            System.out.println("Unexpected error occurred: " + e.getMessage());
+            System.out.println("Unexpected error: " + e.getMessage());
         }
 
-        // System continues safely
-        inventory.displayInventory();
+        // System remains stable
+        system.displayInventory();
+        system.showRollbackStack();
+
         scanner.close();
     }
 }
