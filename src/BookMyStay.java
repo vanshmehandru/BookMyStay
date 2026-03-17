@@ -1,115 +1,95 @@
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Scanner;
 
-// Reservation class (basic model)
-class Reservation {
-    private String reservationId;
-    private String guestName;
-    private String roomType;
-    private double baseCost;
-
-    public Reservation(String reservationId, String guestName, String roomType, double baseCost) {
-        this.reservationId = reservationId;
-        this.guestName = guestName;
-        this.roomType = roomType;
-        this.baseCost = baseCost;
-    }
-
-    public String getReservationId() {
-        return reservationId;
-    }
-
-    public String getGuestName() {
-        return guestName;
-    }
-
-    public String getRoomType() {
-        return roomType;
-    }
-
-    public double getBaseCost() {
-        return baseCost;
-    }
-
-    @Override
-    public String toString() {
-        return "Reservation ID: " + reservationId +
-                ", Guest: " + guestName +
-                ", Room: " + roomType +
-                ", Cost: ₹" + baseCost;
+// Custom Exception for Invalid Booking
+class InvalidBookingException extends Exception {
+    public InvalidBookingException(String message) {
+        super(message);
     }
 }
 
-// Booking History (stores confirmed reservations)
-class BookingHistory {
-    private List<Reservation> confirmedBookings;
+// Hotel Inventory Manager
+class HotelInventory {
+    private Map<String, Integer> rooms;
 
-    public BookingHistory() {
-        confirmedBookings = new ArrayList<>();
+    public HotelInventory() {
+        rooms = new HashMap<>();
+        rooms.put("STANDARD", 5);
+        rooms.put("DELUXE", 3);
+        rooms.put("SUITE", 2);
     }
 
-    // Add confirmed reservation
-    public void addReservation(Reservation reservation) {
-        confirmedBookings.add(reservation);
+    // Validate room type
+    public void validateRoomType(String roomType) throws InvalidBookingException {
+        if (!rooms.containsKey(roomType)) {
+            throw new InvalidBookingException("Invalid room type: " + roomType);
+        }
     }
 
-    // Get all reservations
-    public List<Reservation> getAllReservations() {
-        return confirmedBookings;
+    // Validate availability
+    public void validateAvailability(String roomType, int count) throws InvalidBookingException {
+        int available = rooms.get(roomType);
+        if (count <= 0) {
+            throw new InvalidBookingException("Booking count must be greater than 0.");
+        }
+        if (available < count) {
+            throw new InvalidBookingException("Not enough rooms available. Available: " + available);
+        }
+    }
+
+    // Book room
+    public void bookRoom(String roomType, int count) throws InvalidBookingException {
+        // Fail-fast validations
+        validateRoomType(roomType);
+        validateAvailability(roomType, count);
+
+        // Safe state update
+        rooms.put(roomType, rooms.get(roomType) - count);
+
+        System.out.println("Booking successful! " + count + " " + roomType + " room(s) booked.");
+    }
+
+    // Display inventory
+    public void displayInventory() {
+        System.out.println("\nCurrent Room Availability:");
+        for (String type : rooms.keySet()) {
+            System.out.println(type + ": " + rooms.get(type));
+        }
     }
 }
 
-// Booking Report Service
-class BookingReportService {
-
-    // Display all bookings
-    public void displayAllBookings(List<Reservation> reservations) {
-        if (reservations.isEmpty()) {
-            System.out.println("No bookings found.");
-            return;
-        }
-
-        System.out.println("\n--- Booking History ---");
-        for (Reservation r : reservations) {
-            System.out.println(r);
-        }
-    }
-
-    // Generate summary report
-    public void generateSummary(List<Reservation> reservations) {
-        int totalBookings = reservations.size();
-        double totalRevenue = 0;
-
-        for (Reservation r : reservations) {
-            totalRevenue += r.getBaseCost();
-        }
-
-        System.out.println("\n--- Booking Summary Report ---");
-        System.out.println("Total Bookings: " + totalBookings);
-        System.out.println("Total Revenue: ₹" + totalRevenue);
-    }
-}
-
-// Main class
+// Main Class
 public class BookMyStay {
     public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        HotelInventory inventory = new HotelInventory();
 
-        BookingHistory history = new BookingHistory();
-        BookingReportService reportService = new BookingReportService();
+        System.out.println("=== Welcome to Book My Stay App ===");
 
-        // Simulating confirmed bookings
-        Reservation r1 = new Reservation("RES101", "Alice", "Deluxe", 3000);
-        Reservation r2 = new Reservation("RES102", "Bob", "Suite", 5000);
-        Reservation r3 = new Reservation("RES103", "Charlie", "Standard", 2000);
+        try {
+            System.out.print("Enter Room Type (STANDARD/DELUXE/SUITE): ");
+            String roomType = scanner.nextLine().toUpperCase();
 
-        // Add to booking history (in order)
-        history.addReservation(r1);
-        history.addReservation(r2);
-        history.addReservation(r3);
+            System.out.print("Enter number of rooms: ");
+            int count = Integer.parseInt(scanner.nextLine());
 
-        // Admin views booking history
-        reportService.displayAllBookings(history.getAllReservations());
+            // Attempt booking
+            inventory.bookRoom(roomType, count);
 
-        // Admin generates report
-        reportService.generateSummary(history.getAllReservations());
+        } catch (InvalidBookingException e) {
+            // Graceful failure handling
+            System.out.println("Booking Failed: " + e.getMessage());
+
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input! Please enter a valid number.");
+
+        } catch (Exception e) {
+            System.out.println("Unexpected error occurred: " + e.getMessage());
+        }
+
+        // System continues safely
+        inventory.displayInventory();
+        scanner.close();
     }
 }
